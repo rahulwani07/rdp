@@ -22,12 +22,26 @@ jobs:
           Restart-Service TermService -Force
 
       # -------------------------------------------------
-      # CREATE RDP USER (FIXED PASSWORD METHOD)
+      # CREATE RDP USER (PASSWORD POLICY SAFE)
       # -------------------------------------------------
       - name: Create RDP User
         run: |
-          $chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+"
-          $password = -join ((1..16) | ForEach-Object { $chars | Get-Random -Count 1 })
+          # Character sets (Windows-safe)
+          $upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+          $lower = "abcdefghijkmnopqrstuvwxyz"
+          $digits = "23456789"
+          $special = "!@#%_-"
+
+          # Guarantee policy compliance
+          $password =
+            ($upper   | Get-Random -Count 3) +
+            ($lower   | Get-Random -Count 5) +
+            ($digits  | Get-Random -Count 4) +
+            ($special | Get-Random -Count 2)
+
+          # Shuffle characters
+          $password = -join ($password.ToCharArray() | Get-Random -Count 14)
+
           $secure = ConvertTo-SecureString $password -AsPlainText -Force
 
           New-LocalUser -Name "RDP" -Password $secure -AccountNeverExpires
