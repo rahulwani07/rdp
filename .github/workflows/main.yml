@@ -15,22 +15,25 @@ jobs:
       - name: Configure RDP
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-            -Name "fDenyTSConnections" -Value 0
+            -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-            -Name "UserAuthentication" -Value 0
+            -Name "UserAuthentication" -Value 0 -Force
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service TermService -Force
 
       # -------------------------------------------------
-      # CREATE RDP USER
+      # CREATE RDP USER (FIXED PASSWORD METHOD)
       # -------------------------------------------------
       - name: Create RDP User
         run: |
-          $password = [System.Web.Security.Membership]::GeneratePassword(16,4)
+          $chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+"
+          $password = -join ((1..16) | ForEach-Object { $chars | Get-Random -Count 1 })
           $secure = ConvertTo-SecureString $password -AsPlainText -Force
-          New-LocalUser "RDP" -Password $secure -AccountNeverExpires
+
+          New-LocalUser -Name "RDP" -Password $secure -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "RDP"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
+
           echo "RDP_PASSWORD=$password" >> $env:GITHUB_ENV
 
       # -------------------------------------------------
@@ -39,7 +42,7 @@ jobs:
       - name: Install Tailscale
         run: |
           Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi -OutFile tailscale.msi
-          Start-Process msiexec.exe -ArgumentList "/i tailscale.msi /quiet" -Wait
+          Start-Process msiexec.exe -ArgumentList "/i tailscale.msi /quiet /norestart" -Wait
 
       # -------------------------------------------------
       # CONNECT TAILSCALE
@@ -59,9 +62,9 @@ jobs:
       - name: Show RDP Info
         run: |
           Write-Host "=============================="
-          Write-Host "RDP IP  : $env:TS_IP"
-          Write-Host "User    : RDP"
-          Write-Host "Pass    : $env:RDP_PASSWORD"
+          Write-Host "RDP ADDRESS : $env:TS_IP"
+          Write-Host "USERNAME    : RDP"
+          Write-Host "PASSWORD    : $env:RDP_PASSWORD"
           Write-Host "=============================="
 
       # -------------------------------------------------
