@@ -9,88 +9,46 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      # -------------------------------------------------
-      # ENABLE RDP
-      # -------------------------------------------------
       - name: Configure RDP
         run: |
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-            -Name "fDenyTSConnections" -Value 0 -Force
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-            -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+            -Name fDenyTSConnections -Value 0
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service TermService -Force
 
-      # -------------------------------------------------
-      # CREATE RDP USER (WINDOWS POLICY SAFE)
-      # -------------------------------------------------
       - name: Create RDP User
         run: |
-          $upper   = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-          $lower   = "abcdefghijkmnopqrstuvwxyz"
-          $digits  = "23456789"
-          $special = "!@#%_-"
-
-          $password =
-            ($upper   | Get-Random -Count 3) +
-            ($lower   | Get-Random -Count 5) +
-            ($digits  | Get-Random -Count 4) +
-            ($special | Get-Random -Count 2)
-
-          $password = -join ($password.ToCharArray() | Get-Random -Count 14)
+          $password = "Aa1!Bb2@Cc3#Dd4"
           $secure = ConvertTo-SecureString $password -AsPlainText -Force
-
-          New-LocalUser -Name "RDP" -Password $secure -AccountNeverExpires
-          Add-LocalGroupMember -Group "Administrators" -Member "RDP"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
-
+          New-LocalUser RDP -Password $secure -AccountNeverExpires
+          Add-LocalGroupMember Administrators RDP
+          Add-LocalGroupMember "Remote Desktop Users" RDP
           echo "RDP_PASSWORD=$password" >> $env:GITHUB_ENV
 
-      # -------------------------------------------------
-      # INSTALL TAILSCALE
-      # -------------------------------------------------
       - name: Install Tailscale
         run: |
-          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi -OutFile tailscale.msi
-          Start-Process msiexec.exe -ArgumentList "/i tailscale.msi /quiet /norestart" -Wait
+          Invoke-WebRequest https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi -OutFile ts.msi
+          Start-Process msiexec.exe -ArgumentList "/i ts.msi /quiet /norestart" -Wait
 
-      # -------------------------------------------------
-      # START TAILSCALE (POWERSHELL SAFE)
-      # -------------------------------------------------
       - name: Start Tailscale
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-rdp-$env:GITHUB_RUN_ID
-          $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+          $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
+          & $ts up --authkey="${{ secrets.TAILSCALE_AUTH_KEY }}" --hostname="gh-rdp-$env:GITHUB_RUN_ID"
+          $ip = & $ts ip -4
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
-      # -------------------------------------------------
-      # SHOW RDP INFO
-      # -------------------------------------------------
       - name: Show RDP Info
         run: |
-          Write-Host "=============================="
-          Write-Host "RDP ADDRESS : $env:TS_IP"
-          Write-Host "USERNAME    : RDP"
-          Write-Host "PASSWORD    : $env:RDP_PASSWORD"
-          Write-Host "=============================="
+          Write-Host "IP: $env:TS_IP"
+          Write-Host "User: RDP"
+          Write-Host "Pass: $env:RDP_PASSWORD"
 
-      # -------------------------------------------------
-      # UPLOAD FILES (ACCESS FROM OUTSIDE RDP)
-      # -------------------------------------------------
       - name: Upload RDP Files
         uses: actions/upload-artifact@v4
         with:
           name: rdp-files
-          path: |
-            C:\Users\runneradmin\Desktop
-            C:\Users\runneradmin\Downloads
+          path: C:\Users\runneradmin\Desktop
 
-      # -------------------------------------------------
-      # KEEP RDP ALIVE
-      # -------------------------------------------------
       - name: Keep RDP Alive
         run: |
-          while ($true) {
-            Write-Host "[$(Get-Date)] RDP is running..."
-            Start-Sleep -Seconds 300
-          }
+          while ($true) { Start-Sleep 300 }
