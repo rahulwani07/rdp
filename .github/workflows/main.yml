@@ -22,26 +22,22 @@ jobs:
           Restart-Service TermService -Force
 
       # -------------------------------------------------
-      # CREATE RDP USER (PASSWORD POLICY SAFE)
+      # CREATE RDP USER (WINDOWS POLICY SAFE)
       # -------------------------------------------------
       - name: Create RDP User
         run: |
-          # Character sets (Windows-safe)
-          $upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-          $lower = "abcdefghijkmnopqrstuvwxyz"
-          $digits = "23456789"
+          $upper   = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+          $lower   = "abcdefghijkmnopqrstuvwxyz"
+          $digits  = "23456789"
           $special = "!@#%_-"
 
-          # Guarantee policy compliance
           $password =
             ($upper   | Get-Random -Count 3) +
             ($lower   | Get-Random -Count 5) +
             ($digits  | Get-Random -Count 4) +
             ($special | Get-Random -Count 2)
 
-          # Shuffle characters
           $password = -join ($password.ToCharArray() | Get-Random -Count 14)
-
           $secure = ConvertTo-SecureString $password -AsPlainText -Force
 
           New-LocalUser -Name "RDP" -Password $secure -AccountNeverExpires
@@ -59,19 +55,16 @@ jobs:
           Start-Process msiexec.exe -ArgumentList "/i tailscale.msi /quiet /norestart" -Wait
 
       # -------------------------------------------------
-      # CONNECT TAILSCALE
+      # START TAILSCALE (POWERSHELL SAFE)
       # -------------------------------------------------
       - name: Start Tailscale
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up `
-            --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} `
-            --hostname=gh-rdp-$env:GITHUB_RUN_ID
-
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-rdp-$env:GITHUB_RUN_ID
           $ip = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
           echo "TS_IP=$ip" >> $env:GITHUB_ENV
 
       # -------------------------------------------------
-      # SHOW RDP DETAILS
+      # SHOW RDP INFO
       # -------------------------------------------------
       - name: Show RDP Info
         run: |
@@ -82,7 +75,7 @@ jobs:
           Write-Host "=============================="
 
       # -------------------------------------------------
-      # UPLOAD FILES AS ARTIFACT (OUTSIDE ACCESS)
+      # UPLOAD FILES (ACCESS FROM OUTSIDE RDP)
       # -------------------------------------------------
       - name: Upload RDP Files
         uses: actions/upload-artifact@v4
